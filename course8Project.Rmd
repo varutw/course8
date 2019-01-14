@@ -1,0 +1,115 @@
+---
+title: "Weight Lifting Exercises"
+author: Varut Wiseschinda
+output:
+  pdf_document: default
+  html_document:
+    keep_md: yes
+---
+#Synopsis
+The purpose of this project is to predict the manner of 6 participants in which they did weight lifting exersice, based on data of accelerometers on the belt, forearm, arm, and dumbell of them.
+
+
+#Data Cleaning and Processing
+
+After importing necessary libraries of this project, the data was imported from "pml-training.csv" and "pml-testing.csv" file. 
+
+```{r library,echo=TRUE,warning=FALSE,message=FALSE}
+#import libraries
+library(dplyr)
+library(ggplot2)
+library(data.table)
+library(lubridate)
+library(caret)
+library(rattle)
+library(rpart)
+
+#set working directory
+setwd("D:/Google Drive/dataScientist/")
+
+#import data
+weightLiftingTrain<-read.csv("pml-training.csv")
+weightLiftingTest<-read.csv("pml-testing.csv")
+```
+
+
+Blank cell was then transformed into NA value. Then, only data that is numeric was selected. 
+
+```{r precessing1,echo=TRUE,warning=FALSE,message=FALSE}
+
+#set all blank cell to NA
+weightLiftingTrain[weightLiftingTrain==""]<-NA
+
+#select only numeric columns 
+trainNumOnly<-weightLiftingTrain[,-(1:7)]
+
+use<-integer()
+for (i in seq(1,ncol(trainNumOnly)-1)){
+  trainNumOnly[[i]]<-as.numeric(trainNumOnly[[i]])
+  if (mean(is.na(trainNumOnly[[i]]))<0.05){
+    use<-c(use,i)
+  }
+
+}
+trainNumOnly<-trainNumOnly[,c(use,ncol(trainNumOnly))]  
+```
+
+#Decision Tree
+
+Decision tree was chosen as the first machine learning model, since this problem is non-linear, and decision tree is easy to interpret the result.
+Data was split into two group and use only the first group for training.
+
+```{r traintest,echo=FALSE,warning=FALSE,message=FALSE,results='hide'}
+#set the seed for reproducibility
+set.seed(1333)
+
+#split data into training and testing
+inTrain = createDataPartition(trainNumOnly$classe, p = 0.6)[[1]]
+training = trainNumOnly[ inTrain,]
+testing = trainNumOnly[-inTrain,]
+
+#create model with tree
+
+trees <- rpart(classe~., method = "class",data = training)
+fancyRpartPlot(trees)
+x<-summary(trees)$variable.importance
+```
+
+The accuray of decision tree model was calculated comparing to second data group, which was 75.7%.
+
+```{r accuracy, echo=FALSE}
+#determine accuracy of model
+predictedClasse<- predict(trees, testing, type = "class")
+confusionMatrix(testing$classe,predictedClasse)
+```
+
+The variance importance was also determined.
+
+```{r varience, echo=FALSE}
+x
+```
+
+#Random Forests
+
+The accuracy of decision tree model (75.7%) was not enough to be used for prediction. Therefore, random forests model was selected for accuracy improvement. Since this model is computationally expensive, only 4 predictors (roll_belt, pitch_belt, accel_belt_z, pitch_forearm) were chosen from the variance importance of decision tree model.
+
+
+
+```{r randomforests, echo=FALSE,cache=TRUE}
+#create model with random forests
+rf <- train(classe~roll_belt+pitch_belt+accel_belt_z+pitch_forearm, method = "rf",data = training)
+
+predictedClasseRf<- predict(rf, testing)
+confusionMatrix(testing$classe,predictedClasseRf)
+```
+It can be seen that random forest model was able to achieve 88.2% accuracy, with p-value to be significant.
+
+#Predict Test Case
+Finally, the random forest machine learning model was used to predict 20 different test cases.
+
+```{r validation, echo=FALSE}
+predict(rf, weightLiftingTest)
+```
+
+
+
